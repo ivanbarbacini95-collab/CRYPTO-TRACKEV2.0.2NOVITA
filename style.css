@@ -1,0 +1,37 @@
+body { font-family: Arial; margin:0; background:#0f172a; color:white; }
+
+#menuBtn {
+  position:fixed;
+  top:10px;
+  left:10px;
+  z-index:1100;
+}
+
+#sideMenu {
+  position: fixed;
+  left: -260px;
+  top: 0;
+  width: 250px;
+  height: 100%;
+  background:#111;
+  padding-top:60px;
+  transition: left .3s ease;
+  z-index:1000;
+}
+
+#sideMenu.open { left: 0; }
+
+.menu-item {
+  padding:15px;
+  cursor:pointer;
+}
+
+header { padding:10px; display:flex; gap:10px; background:#111; margin-top:50px;}
+.card { background:#1e293b; margin:15px; padding:15px; border-radius:12px; }
+.price { font-size:28px; transition: all .3s ease; }
+.price.ath, .price.atl { animation: flash 1s infinite alternate; color:yellow; }
+@keyframes flash { from { opacity:1; } to { opacity:.5; } }
+
+.bars { display:flex; gap:5px; align-items:flex-end; height:100px; }
+.bar { flex:1; background:#3b82f6; transition: height .3s ease; }
+.bar.ath, .bar.atl { background:yellow; }
