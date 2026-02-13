@@ -85,6 +85,69 @@ const $ = (id) => document.getElementById(id);
 const clamp = (n, a, b) => Math.min(Math.max(n, a), b);
 const safe = (n) => (Number.isFinite(+n) ? +n : 0);
 
+/* ---- UI: main price direction arrow (robust across tabs/devices) ---- */
+function ensureArrowAnimCSS(){
+  if (document.getElementById("inj-arrow-anim-css")) return;
+  const st = document.createElement("style");
+  st.id = "inj-arrow-anim-css";
+  st.textContent = `
+    /* Main INJ price direction arrow (matches perf arrow style, but rotates) */
+    #priceDirArrow{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:1.25em;
+      margin-right:.25rem;
+      font-weight:950;
+      opacity:.92;
+      transform-origin:50% 50%;
+      filter: drop-shadow(0 0 10px rgba(250,204,21,.0));
+    }
+    #priceDirArrow.up{ color: var(--green); transform: rotate(-90deg); }
+    #priceDirArrow.down{ color: var(--red); transform: rotate(90deg); }
+    #priceDirArrow.flat{ opacity:.55; transform: rotate(0deg); }
+
+    @keyframes priceArrowUpPulse{
+      0%{ transform: rotate(-90deg) translateY(0); filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
+      35%{ transform: rotate(-90deg) translateY(-5px); filter: drop-shadow(0 0 14px rgba(34,197,94,.75)); }
+      100%{ transform: rotate(-90deg) translateY(0); filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
+    }
+    @keyframes priceArrowDownPulse{
+      0%{ transform: rotate(90deg) translateY(0); filter: drop-shadow(0 0 0 rgba(239,68,68,0)); }
+      35%{ transform: rotate(90deg) translateY(5px); filter: drop-shadow(0 0 14px rgba(239,68,68,.75)); }
+      100%{ transform: rotate(90deg) translateY(0); filter: drop-shadow(0 0 0 rgba(239,68,68,0)); }
+    }
+    @keyframes priceArrowFlatPulse{
+      0%{ filter: drop-shadow(0 0 0 rgba(59,130,246,0)); }
+      35%{ filter: drop-shadow(0 0 14px rgba(59,130,246,.65)); }
+      100%{ filter: drop-shadow(0 0 0 rgba(59,130,246,0)); }
+    }
+
+    #priceDirArrow.pulse.up{ animation: priceArrowUpPulse .45s ease-out 1; }
+    #priceDirArrow.pulse.down{ animation: priceArrowDownPulse .45s ease-out 1; }
+    #priceDirArrow.pulse.flat{ animation: priceArrowFlatPulse .35s ease-out 1; }
+
+    @media (prefers-reduced-motion: reduce){
+      #priceDirArrow.pulse.up, #priceDirArrow.pulse.down, #priceDirArrow.pulse.flat{ animation: none !important; }
+    }
+  `;
+  document.head.appendChild(st);
+}
+
+function ensurePriceDirArrow(){
+  let el = $("priceDirArrow");
+  if (el) return el;
+  const priceEl = $("price");
+  if (!priceEl || !priceEl.parentElement) return null;
+  el = document.createElement("span");
+  el.id = "priceDirArrow";
+  el.className = "flat";
+  el.textContent = "►"; // same glyph used by the perf arrows, rotated via CSS
+  // insert before the main price number
+  priceEl.parentElement.insertBefore(el, priceEl);
+  return el;
+}
+
 const ROME_TZ = "Europe/Rome";
 
 function fmtTrim(n, maxDecimals = 6){
@@ -4584,6 +4647,9 @@ renderEvents = function(){
   applyTheme(theme);
   applyView(viewMode);
   applyPrivacy(privacyOn);
+  // Ensure main price arrow exists + has animation styles (helps when CSS is cached on some devices)
+  ensureArrowAnimCSS();
+  ensurePriceDirArrow();
   updatePriceScaleBtn();
   ZOOM_OK = tryRegisterZoom();
 
@@ -4702,67 +4768,6 @@ safeAsync(() => cloudPull(), "cloudPull");
   }
 })();
 
-
-/* ================= RUNTIME STYLE FIXES ================= */
-function ensureRuntimeStyles(){
-  try{
-    if (window.__injRuntimeStylesInjected) return;
-    window.__injRuntimeStylesInjected = true;
-
-    const css = `
-      /* fallback styles (in case old CSS is cached on some devices) */
-      .dir-arrow{
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        width:1.1em;
-        margin-right:.35em;
-        line-height:1;
-        font-weight:900;
-        transform: translateY(-0.5px);
-        transition: color .12s ease, text-shadow .12s ease, filter .12s ease, opacity .12s ease;
-      }
-      .dir-arrow.up{
-        color: var(--green, #22c55e);
-        text-shadow: 0 0 10px rgba(34,197,94,.55), 0 0 18px rgba(34,197,94,.25);
-        filter: saturate(1.15);
-      }
-      .dir-arrow.down{
-        color: var(--red, #ef4444);
-        text-shadow: 0 0 10px rgba(239,68,68,.55), 0 0 18px rgba(239,68,68,.25);
-        filter: saturate(1.15);
-      }
-      .dir-arrow.flat{
-        color: rgba(249,250,251,.65);
-        text-shadow: none;
-        filter: none;
-        opacity: .9;
-      }
-
-      @keyframes injBlinkYellow {
-        0%, 100% { color: var(--yellow, #facc15); text-shadow: 0 0 10px rgba(250,204,21,.55), 0 0 18px rgba(250,204,21,.28); }
-        50% { color: rgba(250,204,21,.55); text-shadow: none; }
-      }
-      .blink-yellow{
-        animation: injBlinkYellow .85s ease-in-out infinite;
-      }
-      @media (prefers-reduced-motion: reduce){
-        .blink-yellow{
-          animation: none !important;
-          color: var(--yellow, #facc15);
-          text-shadow: 0 0 10px rgba(250,204,21,.55);
-        }
-      }
-    `.trim();
-
-    const st = document.createElement("style");
-    st.id = "inj-runtime-style";
-    st.textContent = css;
-    document.head && document.head.appendChild(st);
-  } catch {}
-}
-
-
 /* ================= LOOP ================= */
 function animate() {
   const op = displayed.price;
@@ -4771,21 +4776,33 @@ function animate() {
 
   // Direction arrow next to main INJ price (per-tick)
   try{
-    const el = $("priceDirArrow");
+    const el = ensurePriceDirArrow();
     if (el){
-      ensureRuntimeStyles();
-      el.classList.add("dir-arrow");
       const prev = Number.isFinite(+el.dataset.prev) ? +el.dataset.prev : safe(targetPrice);
       const now  = safe(targetPrice);
       const d = now - prev;
+
+      // store for next tick
       el.dataset.prev = String(now);
 
-      el.classList.remove("up","down","flat");
-      if (d > 0) { el.classList.add("up"); el.textContent = "▲"; el.style.color = "var(--green)"; el.style.textShadow = "0 0 10px rgba(34,197,94,.55), 0 0 18px rgba(34,197,94,.25)"; }
-      else if (d < 0) { el.classList.add("down"); el.textContent = "▼"; el.style.color = "var(--red)"; el.style.textShadow = "0 0 10px rgba(239,68,68,.55), 0 0 18px rgba(239,68,68,.25)"; }
-      else { el.classList.add("flat"); el.textContent = "➜"; el.style.color = "rgba(249,250,251,.65)"; el.style.textShadow = "none"; }
+      // base glyph matches perf arrows; direction is rotation + color
+      el.textContent = "►";
+
+      el.classList.remove("up","down","flat","pulse");
+      if (d > 0) el.classList.add("up");
+      else if (d < 0) el.classList.add("down");
+      else el.classList.add("flat");
+
+      // retrigger pulse animation on every tick change (including flat if you want subtle feedback)
+      // Only pulse if price actually changed to avoid constant animation on unchanged ticks
+      if (d !== 0){
+        // force reflow to restart animation reliably across browsers
+        void el.offsetWidth;
+        el.classList.add("pulse");
+      }
     }
   } catch {}
+
 
   // Total withdrawn rewards (USD updates with price)
   try { if (typeof updateTotalRewardAccUI === "function") updateTotalRewardAccUI(); } catch (e) { console.warn("[updateTotalRewardAccUI]", e); }
@@ -4842,7 +4859,6 @@ function animate() {
   } else { setText("yearMin", "--"); setText("yearOpen", "--"); setText("yearMax", "--"); }
 
 
-  ensureRuntimeStyles();
   // ATH / ATL blink on bars + main price when price is touching candle extremes
   try{
     const p = safe(targetPrice);
