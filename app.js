@@ -91,44 +91,50 @@ function ensureArrowAnimCSS(){
   const st = document.createElement("style");
   st.id = "inj-arrow-anim-css";
   st.textContent = `
-    /* Main INJ price direction arrow (matches perf arrow style, but rotates) */
+    /* Main INJ price direction arrow (matches perf arrow glyph) */
     #priceDirArrow{
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      width:1.25em;
-      margin-right:.25rem;
+      width:1.45em;
+      margin-right:.28rem;
       font-weight:950;
-      opacity:.92;
+      font-size:1.15em;
+      line-height:1;
+      opacity:1;
       transform-origin:50% 50%;
-      filter: drop-shadow(0 0 10px rgba(250,204,21,.0));
+      will-change: transform, filter, opacity;
+      filter: drop-shadow(0 0 18px rgba(250,204,21,.0));
     }
-    #priceDirArrow.up{ color: var(--green); transform: rotate(-90deg); }
-    #priceDirArrow.down{ color: var(--red); transform: rotate(90deg); }
-    #priceDirArrow.flat{ opacity:.55; transform: rotate(0deg); }
+    #priceDirArrow.hidden{ display:none; }
+
+    #priceDirArrow.up{
+      color: var(--green);
+      transform: rotate(-90deg);
+      filter: drop-shadow(0 0 18px rgba(34,197,94,.55));
+    }
+    #priceDirArrow.down{
+      color: var(--red);
+      transform: rotate(90deg);
+      filter: drop-shadow(0 0 18px rgba(239,68,68,.55));
+    }
 
     @keyframes priceArrowUpPulse{
-      0%{ transform: rotate(-90deg) translateY(0); filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
-      35%{ transform: rotate(-90deg) translateY(-5px); filter: drop-shadow(0 0 14px rgba(34,197,94,.75)); }
-      100%{ transform: rotate(-90deg) translateY(0); filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
+      0%{ transform: rotate(-90deg) translateY(0) scale(1); filter: drop-shadow(0 0 0 rgba(34,197,94,0)); }
+      35%{ transform: rotate(-90deg) translateY(-7px) scale(1.08); filter: drop-shadow(0 0 22px rgba(34,197,94,.95)); }
+      100%{ transform: rotate(-90deg) translateY(0) scale(1); filter: drop-shadow(0 0 18px rgba(34,197,94,.55)); }
     }
     @keyframes priceArrowDownPulse{
-      0%{ transform: rotate(90deg) translateY(0); filter: drop-shadow(0 0 0 rgba(239,68,68,0)); }
-      35%{ transform: rotate(90deg) translateY(5px); filter: drop-shadow(0 0 14px rgba(239,68,68,.75)); }
-      100%{ transform: rotate(90deg) translateY(0); filter: drop-shadow(0 0 0 rgba(239,68,68,0)); }
-    }
-    @keyframes priceArrowFlatPulse{
-      0%{ filter: drop-shadow(0 0 0 rgba(59,130,246,0)); }
-      35%{ filter: drop-shadow(0 0 14px rgba(59,130,246,.65)); }
-      100%{ filter: drop-shadow(0 0 0 rgba(59,130,246,0)); }
+      0%{ transform: rotate(90deg) translateY(0) scale(1); filter: drop-shadow(0 0 0 rgba(239,68,68,0)); }
+      35%{ transform: rotate(90deg) translateY(7px) scale(1.08); filter: drop-shadow(0 0 22px rgba(239,68,68,.95)); }
+      100%{ transform: rotate(90deg) translateY(0) scale(1); filter: drop-shadow(0 0 18px rgba(239,68,68,.55)); }
     }
 
-    #priceDirArrow.pulse.up{ animation: priceArrowUpPulse .45s ease-out 1; }
-    #priceDirArrow.pulse.down{ animation: priceArrowDownPulse .45s ease-out 1; }
-    #priceDirArrow.pulse.flat{ animation: priceArrowFlatPulse .35s ease-out 1; }
+    #priceDirArrow.pulse.up{ animation: priceArrowUpPulse .78s ease-out 1; }
+    #priceDirArrow.pulse.down{ animation: priceArrowDownPulse .78s ease-out 1; }
 
     @media (prefers-reduced-motion: reduce){
-      #priceDirArrow.pulse.up, #priceDirArrow.pulse.down, #priceDirArrow.pulse.flat{ animation: none !important; }
+      #priceDirArrow.pulse.up, #priceDirArrow.pulse.down{ animation: none !important; }
     }
   `;
   document.head.appendChild(st);
@@ -141,7 +147,7 @@ function ensurePriceDirArrow(){
   if (!priceEl || !priceEl.parentElement) return null;
   el = document.createElement("span");
   el.id = "priceDirArrow";
-  el.className = "flat";
+  el.className = "hidden";
   el.textContent = "►"; // same glyph used by the perf arrows, rotated via CSS
   // insert before the main price number
   priceEl.parentElement.insertBefore(el, priceEl);
@@ -4773,32 +4779,51 @@ function animate() {
   const op = displayed.price;
   displayed.price = tick(displayed.price, targetPrice);
   colorNumber($("price"), displayed.price, op, 4);
-
-  // Direction arrow next to main INJ price (per-tick)
+  // Direction arrow next to main INJ price (visible + lingers; hidden when stable)
   try{
     const el = ensurePriceDirArrow();
     if (el){
-      const prev = Number.isFinite(+el.dataset.prev) ? +el.dataset.prev : safe(targetPrice);
-      const now  = safe(targetPrice);
-      const d = now - prev;
+      const HOLD_MS = 1300; // keep arrow visible a bit after each price change
+      const nowTs = Date.now();
 
-      // store for next tick
-      el.dataset.prev = String(now);
+      const prevTarget = Number.isFinite(+el.dataset.prevTarget) ? +el.dataset.prevTarget : safe(targetPrice);
+      const nowTarget  = safe(targetPrice);
+      const d = nowTarget - prevTarget;
+
+      // store for next tick (target changes come from WS/poll)
+      el.dataset.prevTarget = String(nowTarget);
 
       // base glyph matches perf arrows; direction is rotation + color
       el.textContent = "►";
 
-      el.classList.remove("up","down","flat","pulse");
-      if (d > 0) el.classList.add("up");
-      else if (d < 0) el.classList.add("down");
-      else el.classList.add("flat");
+      const lastAt  = Number.isFinite(+el.dataset.lastAt) ? +el.dataset.lastAt : 0;
+      const lastDir = el.dataset.lastDir || "";
 
-      // retrigger pulse animation on every tick change (including flat if you want subtle feedback)
-      // Only pulse if price actually changed to avoid constant animation on unchanged ticks
-      if (d !== 0){
-        // force reflow to restart animation reliably across browsers
-        void el.offsetWidth;
-        el.classList.add("pulse");
+      let dir = "";
+      let changed = false;
+
+      if (d > 0) { dir = "up"; changed = true; }
+      else if (d < 0) { dir = "down"; changed = true; }
+      else {
+        // no change this frame: keep last direction for a bit, then hide
+        if (lastDir && (nowTs - lastAt) < HOLD_MS) dir = lastDir;
+        else dir = "";
+      }
+
+      // apply
+      el.classList.remove("up","down","pulse","hidden");
+
+      if (!dir){
+        el.classList.add("hidden"); // stable: no arrow
+      } else {
+        el.classList.add(dir);
+        el.dataset.lastDir = dir;
+        if (changed){
+          el.dataset.lastAt = String(nowTs);
+          // retrigger pulse animation on each change
+          void el.offsetWidth;
+          el.classList.add("pulse");
+        }
       }
     }
   } catch {}
